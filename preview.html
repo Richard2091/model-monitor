@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh" class="__THEME_CLASS__">
+<html lang="zh" class="">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -129,7 +129,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Mi
 </div>
 <div id="tooltip"></div>
 <script>
-let current = __TODAY__;
+let current = new Date(2026,8,1);
 let timer = null;
 let slotData = [];
 let hideTimer = null;
@@ -524,6 +524,41 @@ function toggleCalendar(){
 
 document.addEventListener('DOMContentLoaded', function(){ load(); });
 if(timer) clearInterval(timer); timer=setInterval(load, 30000);
+</script>
+<script>
+// 构造 08:00 至 22:00 的本地模拟监控数据，便于预览页面独立运行。
+const __previewModels = [
+  {model:'deepseek-v4-flash', slots:[]},
+  {model:'deepseek-v4-flash-vision-exp', slots:[]},
+  {model:'glm-5.3-flash', slots:[]},
+  {model:'gpt-5.4', slots:[]},
+  {model:'gpt-5.5', slots:[]},
+  {model:'gpt-5.6-sol', slots:[]},
+  {model:'gpt-5.6-terra', slots:[]},
+  {model:'qwen3.7-flash', slots:[]},
+  {model:'qwen3.7-plus', slots:[]}
+];
+// 按 5 分钟生成包含 08:00 与 22:00 在内的 169 个监控点位。
+__previewModels.forEach(function(model, modelIndex){
+  for(let index=0; index<=168; index++){
+    const totalMinutes=8*60+index*5;
+    const ok=(index+modelIndex)%11!==0;
+    model.slots.push({
+      time:String(Math.floor(totalMinutes/60)).padStart(2,'0')+':'+String(totalMinutes%60).padStart(2,'0'),
+      ok:ok,
+      latency_ms:ok ? 1800+((index*970+modelIndex*460)%11500) : null,
+      message:ok ? '' : '模拟失败'
+    });
+  }
+});
+// 仅拦截预览页状态接口请求，其他请求仍交给原生 fetch。
+const __realFetch=window.fetch.bind(window);
+window.fetch=function(url, options){
+  if(String(url).startsWith('api/status')){
+    return Promise.resolve(new Response(JSON.stringify({models:__previewModels,slow_ms:10000}), {status:200,headers:{'Content-Type':'application/json'}}));
+  }
+  return __realFetch(url, options);
+};
 </script>
 </body>
 </html>
