@@ -5,3 +5,12 @@ __pycache__/
 .git/
 .gitignore
 README.md
+.idea/
+.vscode/
+logs/
+*.db
+*.sqlite3
+.venv/
+venv/
+tests/
+LICENSE

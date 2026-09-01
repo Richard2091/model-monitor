@@ -97,7 +97,6 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Mi
 </div>
 <div id="tooltip"></div>
 <script>
-const MODELS = __MODELS__;
 let current = __TODAY__;
 let timer = null;
 let slotData = [];
@@ -110,7 +109,22 @@ function fmt(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'
 function weekday(d){ return '周'+'日一二三四五六'[d.getDay()]; }
 function todayStart(){ const t=new Date(); t.setHours(0,0,0,0); return t; }
 
-function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/**
+ * 将文本转义为可安全输出的 HTML，同时覆盖元素内容和属性上下文。
+ * @param {string} s 需要转义的原始文本。
+ * @return {string} 返回转义后的安全文本；空值按空字符串处理。
+ */
+function escHtml(s){
+  // 归一化空值，避免数据缺失时触发异常
+  const value = String(s ?? '');
+  // 按顺序转义 HTML 特殊字符，确保内容与属性上下文都安全
+  return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+/**
+ * 根据单个槽位状态计算展示用的样式与中文文案。
+ * @param {object} info 槽位监控信息。
+ * @return {Array<string>} 返回 [样式类名, 展示文案]。
+ */
 function statusText(info){
   if(info.ok===null) return ['empty','未监控'];
   if(info.ok) return (info.lat>curSlow ? ['warn','缓慢'] : ['ok','正常']);
@@ -118,6 +132,10 @@ function statusText(info){
 }
 
 let retryTimer = null;
+/**
+ * 切换到维护提示状态，并启动倒计时自动重试。
+ * @return {void} 无返回值，直接更新页面状态。
+ */
 function showMaintenance(){
   const list=document.getElementById('list');
   const maint=document.getElementById('maintenance');
@@ -128,6 +146,10 @@ function showMaintenance(){
   if (retryTimer) clearInterval(retryTimer);
   retryTimer = setInterval(function(){ n--; if (cd) cd.textContent = n; if (n <= 0) load(); }, 1000);
 }
+/**
+ * 隐藏维护提示并停止自动重试计时器。
+ * @return {void} 无返回值，直接更新页面状态。
+ */
 function hideMaintenance(){
   const list=document.getElementById('list');
   const maint=document.getElementById('maintenance');
@@ -136,6 +158,10 @@ function hideMaintenance(){
   if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
 }
 
+/**
+ * 加载指定日期的模型状态数据，并渲染时间线与可用率。
+ * @return {Promise<void>} 无返回值；失败时切换到维护提示。
+ */
 async function load(){
   const ds=fmt(current);
   const dateLabel=document.getElementById('dateLabel');
@@ -148,7 +174,23 @@ async function load(){
   list.innerHTML='<div class="loading">加载中…</div>';
   const url='api/status?date='+ds;
   let data;
-  try{ const r=await fetch(url); if(!r.ok) throw new Error('http '+r.status); data=await r.json(); if(!data || !Array.isArray(data.models)) throw new Error('bad data'); curSlow = data.slow_ms || 10000; }catch(e){ console.error(e); showMaintenance(); return; }
+  try {
+    // 请求当日模型状态数据
+    const r = await fetch(url);
+    // 校验 HTTP 响应状态
+    if(!r.ok) throw new Error('http '+r.status);
+    // 解析服务端返回的 JSON 数据
+    data = await r.json();
+    // 校验响应结构，避免异常数据进入渲染流程
+    if(!data || !Array.isArray(data.models)) throw new Error('bad data');
+    // 读取慢请求阈值
+    curSlow = data.slow_ms || 10000;
+  } catch(e) {
+    // 记录加载失败原因，并切换到维护提示
+    console.error(e);
+    showMaintenance();
+    return;
+  }
   let html='', gidx=0;
   slotData=[];
   data.models.forEach(m=>{
@@ -164,12 +206,20 @@ async function load(){
       bars+='<span class="bar '+cls+'" data-i="'+gidx+'"></span>';
       gidx++;
     });
-    html+='<div class="row"><div class="name" title="'+m.model+'">'+m.model+'</div><div class="timeline">'+bars+'</div>'+
+    // 转义模型名，保证 title 属性和元素内容两处上下文均安全
+    const safeModel = escHtml(m.model);
+    html+='<div class="row"><div class="name" title="'+safeModel+'">'+safeModel+'</div><div class="timeline">'+bars+'</div>'+
       '<div class="stats"><div class="avail '+availCls+'">可用率 '+(s.length? rate.toFixed(1):0)+'%</div></div></div>';
   });
   list.innerHTML=html;
 }
 
+/**
+ * 在指定柱条附近渲染提示框，并根据视口边界自动调整位置。
+ * @param {HTMLElement} bar 触发提示的柱条元素。
+ * @param {string} html 已经过安全转义的提示内容。
+ * @return {void} 无返回值，直接更新提示框 DOM。
+ */
 function placeTip(bar, html){
   const tip = document.getElementById('tooltip');
   tip.innerHTML = html;
@@ -185,15 +235,25 @@ function placeTip(bar, html){
   tip.style.transform = transform;
 }
 
+/**
+ * 根据槽位数据生成并显示监控详情提示框。
+ * @param {HTMLElement} bar 触发提示的柱条元素。
+ * @return {void} 无返回值，直接更新提示框内容。
+ */
 function showTip(bar){
   const info = slotData[Number(bar.dataset.i)] || {};
   const [stCls, stTxt] = statusText(info);
-  let html = '<div class="tt-time">'+info.time+'</div><div class="tt-status '+stCls+'">'+stTxt+'</div>';
+  let html = '<div class="tt-time">'+escHtml(info.time)+'</div><div class="tt-status '+stCls+'">'+stTxt+'</div>';
   if(info.lat!==null && info.lat!==undefined) html += '<div class="tt-lat">延迟 '+info.lat+'ms</div>';
   if(!info.ok && info.err) html += '<div class="tt-err">'+escHtml(info.err)+'</div>';
   placeTip(bar, html);
 }
 
+/**
+ * 将槽位详情格式化为适合复制到剪贴板的纯文本。
+ * @param {object} info 槽位监控信息。
+ * @return {string} 返回格式化后的复制文本。
+ */
 function copyInfo(info){
   const [stCls, stTxt] = statusText(info);
   let txt = '模型：'+info.model+'\n时间：'+info.time+'\n状态：'+stTxt;
@@ -201,46 +261,24 @@ function copyInfo(info){
   if(!info.ok && info.err) txt += '\n错误：'+info.err;
   return txt;
 }
+/**
+ * 在剪贴板 API 不可用时使用隐藏输入框兜底复制文本。
+ * @param {string} txt 需要复制的内容。
+ * @return {void} 无返回值，复制结果由浏览器执行。
+ */
 function fallbackCopy(txt){
   const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select();
   try{ document.execCommand('copy'); }catch(e){}
   document.body.removeChild(ta);
 }
+/**
+ * 复制文本到剪贴板，并自动处理浏览器兼容性兜底。
+ * @param {string} txt 需要复制的内容。
+ * @return {Promise<void>} 返回复制完成后的异步结果。
+ */
 function copyText(txt){
   if(navigator.clipboard && navigator.clipboard.writeText){ return navigator.clipboard.writeText(txt).catch(function(){ fallbackCopy(txt); }); }
   try{ fallbackCopy(txt); return Promise.resolve(); }catch(e){ return Promise.reject(e); }
-}
-
-function renderCalendar(){
-  const cal = document.getElementById('calendar');
-  const today = todayStart();
-  const first = new Date(viewYear, viewMonth, 1);
-  const startDow = first.getDay();
-  const offset = (startDow + 6) % 7; // 周一开头
-  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
-  let html = '<div class="cal-head"><button id="calPrev">‹</button><div class="cal-title">'+viewYear+'年'+(viewMonth+1)+'月</div><button id="calNext">›</button></div>';
-  html += '<div class="cal-grid">';
-  ['一','二','三','四','五','六','日'].forEach(d=> html+='<div class="dow">'+d+'</div>');
-  for(let i=0;i<offset;i++) html+='<div class="day blank"></div>';
-  for(let d=1; d<=daysInMonth; d++){
-    const dt = new Date(viewYear, viewMonth, d);
-    const isSel = (dt.getFullYear()===current.getFullYear() && dt.getMonth()===current.getMonth() && dt.getDate()===current.getDate());
-    const disabled = dt > today;
-    html+='<div class="day '+(isSel?'sel ':'')+(disabled?'disabled':'')+'" data-d="'+d+'">'+d+'</div>';
-  }
-  html += '</div>';
-  cal.innerHTML = html;
-  document.getElementById('calPrev').onclick=function(){ viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} renderCalendar(); };
-  document.getElementById('calNext').onclick=function(){ viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} renderCalendar(); };
-  cal.querySelectorAll('.day:not(.blank):not(.disabled)').forEach(function(el){
-    el.onclick=function(){ const d=Number(el.dataset.d); current=new Date(viewYear, viewMonth, d); calOpen=false; document.getElementById('calendar').classList.remove('open'); load(); };
-  });
-}
-
-function toggleCalendar(){
-  calOpen = !calOpen;
-  if(calOpen){ const d=new Date(current); viewYear=d.getFullYear(); viewMonth=d.getMonth(); renderCalendar(); }
-  document.getElementById('calendar').classList.toggle('open', calOpen);
 }
 
 document.getElementById('dateLabel').onclick=function(e){ e.stopPropagation(); toggleCalendar(); };
@@ -270,13 +308,18 @@ document.addEventListener('click', function(e){
   }
 });
 
+/**
+ * 渲染日历面板内容，并绑定月份切换与日期选择事件。
+ * @return {void} 无返回值，直接更新日历 DOM。
+ */
 function renderCalendar(){
   const cal = document.getElementById('calendar');
   const today = todayStart();
   const first = new Date(viewYear, viewMonth, 1);
   const startDow = first.getDay();
-  const offset = (startDow + 6) % 7;
+  const offset = (startDow + 6) % 7; // 周一开头
   const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  // 根据视图年月生成日历头部与日期网格
   let html = '<div class="cal-head"><button id="calPrev">‹</button><div class="cal-title">'+viewYear+'年'+(viewMonth+1)+'月</div><button id="calNext">›</button></div>';
   html += '<div class="cal-grid">';
   ['一','二','三','四','五','六','日'].forEach(d=> html+='<div class="dow">'+d+'</div>');
@@ -289,16 +332,26 @@ function renderCalendar(){
   }
   html += '</div>';
   cal.innerHTML = html;
-  document.getElementById('calPrev').onclick=function(){ viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} renderCalendar(); };
-  document.getElementById('calNext').onclick=function(){ viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} renderCalendar(); };
+  // 切换上一月；阻止冒泡，避免旧按钮被重建后被外层监听误判为面板外点击
+  document.getElementById('calPrev').onclick=function(e){ e.stopPropagation(); viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} renderCalendar(); };
+  // 切换下一月；保持日历面板继续打开
+  document.getElementById('calNext').onclick=function(e){ e.stopPropagation(); viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} renderCalendar(); };
+  // 绑定可选日期，选择后更新当前日期并关闭面板
   cal.querySelectorAll('.day:not(.blank):not(.disabled)').forEach(function(el){
     el.onclick=function(){ const d=Number(el.dataset.d); current=new Date(viewYear, viewMonth, d); calOpen=false; document.getElementById('calendar').classList.remove('open'); load(); };
   });
 }
 
+/**
+ * 切换日历面板显示状态；打开时按当前日期重置视图年月。
+ * @return {void} 无返回值，直接更新面板状态与样式。
+ */
 function toggleCalendar(){
+  // 翻转日历面板开启状态
   calOpen = !calOpen;
+  // 打开面板时同步当前日期对应的视图年月
   if(calOpen){ const d=new Date(current); viewYear=d.getFullYear(); viewMonth=d.getMonth(); renderCalendar(); }
+  // 按状态更新面板显隐
   document.getElementById('calendar').classList.toggle('open', calOpen);
 }
 
