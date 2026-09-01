@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh" class="__THEME_CLASS__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模型可用性监控</title>
+<style>
+:root { --primary:#14b8a6; --primary-600:#0d9488; --bg:#f5f7fa; --card:#ffffff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --ok:#10b981; --fail:#ef4444; --empty:#e2e8f0; }
+.dark { --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --muted:#94a3b8; --border:#334155; --empty:#334155; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); padding:18px; font-size:16px; min-height:100vh; display:flex; }
+.wrap { max-width:1500px; margin:0 auto; width:100%; min-height:calc(100vh - 36px); display:flex; flex-direction:column; }
+.topbar { position:relative; display:flex; align-items:center; gap:12px; min-height:48px; margin-bottom:20px; flex:0 0 auto; }
+.title-row { display:flex; align-items:flex-end; gap:12px; flex:0 0 auto; }
+.title { font-size:22px; font-weight:700; }
+.datepicker { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:4px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:4px 6px; white-space:nowrap; }
+.datepicker button { background:transparent; border:none; color:var(--text); cursor:pointer; font-size:17px; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+.datepicker button:hover { background:var(--border); }
+.datepicker button:disabled { opacity:.35; cursor:not-allowed; }
+.datepicker .date-label { font-size:16px; font-weight:600; width:160px; text-align:center; cursor:pointer; padding:3px 8px; border-radius:8px; white-space:nowrap; }
+.datepicker .date-label:hover { background:var(--border); }
+.calendar { position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.18); padding:12px; width:330px; z-index:999; display:none; }
+.calendar.open { display:block; }
+.cal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.cal-head button { background:transparent; border:none; color:var(--text); font-size:20px; width:30px; height:30px; border-radius:8px; cursor:pointer; }
+.cal-head button:hover { background:var(--border); }
+.cal-title { font-weight:700; font-size:14px; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-grid .dow { text-align:center; color:var(--muted); font-size:12px; padding:5px 0; }
+.cal-grid .day { text-align:center; padding:6px 0; font-size:13px; border-radius:8px; cursor:pointer; }
+.cal-grid .day:hover { background:var(--border); }
+.cal-grid .day.sel { background:var(--primary); color:#fff; }
+.cal-grid .day.disabled { color:var(--muted); opacity:.35; cursor:not-allowed; }
+.cal-grid .day.blank { pointer-events:none; }
+.list { flex:1 1 auto; display:flex; flex-direction:column; gap:10px; }
+.loading { color:var(--muted); text-align:center; padding:44px 0; font-size:16px; }
+.row { flex:1 1 0; min-height:0; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:12px; }
+.row .name { width:220px; flex-shrink:0; font-weight:600; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.timeline { flex:1; display:flex; gap:2px; align-items:stretch; }
+.timeline .bar { flex:1 1 0; min-width:2px; height:20px; border-radius:2px; transition:transform .12s ease; }
+.bar.ok { background:var(--ok); }
+.bar.fail { background:var(--fail); }
+.bar.warn { background:#f59e0b; }
+.bar.empty { background:var(--empty); }
+.bar:hover { transform:scale(1.5); }
+.bar:active { transform:scale(1.2); }
+.stats { flex:0 0 auto; min-width:120px; text-align:right; white-space:nowrap; }
+.stats .avail { font-size:16px; font-weight:700; white-space:nowrap; }
+.stats .avail.good { color:#059669; } .stats .avail.warn { color:#b45309; } .stats .avail.bad { color:#dc2626; }
+.legend { display:flex; gap:10px; font-size:13px; color:var(--muted); align-items:center; white-space:nowrap; flex-wrap:nowrap; margin:0; padding-bottom:1px; }
+.legend span { display:flex; align-items:center; gap:4px; }
+.legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+.legend i.ok { background:var(--ok); } .legend i.fail { background:var(--fail); } .legend i.warn { background:#f59e0b; } .legend i.empty { background:var(--empty); }
+#tooltip { position:fixed; z-index:9999; background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.18); pointer-events:none; display:none; min-width:150px; max-width:300px; }
+#tooltip .tt-time { color:var(--muted); font-size:12px; }
+#tooltip .tt-status { font-weight:700; font-size:16px; margin:2px 0; }
+#tooltip .tt-status.ok { color:#059669; } #tooltip .tt-status.fail { color:#dc2626; } #tooltip .tt-status.warn { color:#b45309; } #tooltip .tt-status.empty { color:var(--muted); }
+#tooltip .tt-lat { font-weight:700; font-size:14px; }
+#tooltip .tt-err { color:#dc2626; font-size:12px; margin-top:4px; word-break:break-all; white-space:pre-wrap; max-height:70px; overflow-y:auto; }
+.maintenance { flex:1 1 auto; display:flex; align-items:center; justify-content:center; }
+.maint-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:36px 44px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,.08); max-width:460px; }
+.maint-icon { width:60px; height:60px; margin:0 auto 16px; border-radius:16px; background:rgba(20,184,166,.12); display:flex; align-items:center; justify-content:center; }
+.maint-icon svg { width:30px; height:30px; color:var(--primary); animation:spin 1.4s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.maint-title { font-size:20px; font-weight:700; margin-bottom:8px; }
+.maint-desc { color:var(--muted); font-size:14px; line-height:1.8; margin-bottom:18px; }
+.maint-retry { background:var(--primary); color:#fff; border:none; border-radius:10px; padding:9px 20px; font-size:14px; font-weight:600; cursor:pointer; }
+.maint-retry:hover { background:var(--primary-600); }
+.maint-hint { margin-top:12px; font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="topbar">
+    <div class="title-row">
+      <div class="title">模型可用性监控</div>
+      <div class="legend"><span><i class="ok"></i>正常</span><span><i class="warn"></i>缓慢</span><span><i class="fail"></i>失败</span><span><i class="empty"></i>未监控</span></div>
+    </div>
+    <div class="datepicker">
+      <button id="prev" title="前一天">‹</button>
+      <div class="date-label" id="dateLabel"></div>
+      <button id="next" title="后一天">›</button>
+      <button id="today" title="今天(重置)"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg></button>
+      <div class="calendar" id="calendar"></div>
+    </div>
+  </div>
+<div class="list" id="list"></div>
+  <div class="maintenance" id="maintenance" style="display:none">
+    <div class="maint-card">
+      <div class="maint-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg></div>
+      <div class="maint-title">系统维护中</div>
+      <div class="maint-desc">模型可用性监控正在维护升级，数据将在服务恢复后自动加载。<br>为您带来的不便敬请谅解。</div>
+      <button class="maint-retry" onclick="load()">立即重试</button>
+      <div class="maint-hint">将在 <span id="maintCd">10</span> 秒后自动重试</div>
+    </div>
+  </div>
+</div>
+<div id="tooltip"></div>
+<script>
+const MODELS = __MODELS__;
+let current = __TODAY__;
+let timer = null;
+let slotData = [];
+let hideTimer = null;
+let calOpen = false;
+let viewYear = 0, viewMonth = 0;
+let curSlow = 10000;
+
+function fmt(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return y+'-'+m+'-'+dd; }
+function weekday(d){ return '周'+'日一二三四五六'[d.getDay()]; }
+function todayStart(){ const t=new Date(); t.setHours(0,0,0,0); return t; }
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function statusText(info){
+  if(info.ok===null) return ['empty','未监控'];
+  if(info.ok) return (info.lat>curSlow ? ['warn','缓慢'] : ['ok','正常']);
+  return ['fail','失败'];
+}
+
+let retryTimer = null;
+function showMaintenance(){
+  const list=document.getElementById('list');
+  const maint=document.getElementById('maintenance');
+  list.style.display='none';
+  maint.style.display='flex';
+  let n = 10;
+  const cd = document.getElementById('maintCd');
+  if (retryTimer) clearInterval(retryTimer);
+  retryTimer = setInterval(function(){ n--; if (cd) cd.textContent = n; if (n <= 0) load(); }, 1000);
+}
+function hideMaintenance(){
+  const list=document.getElementById('list');
+  const maint=document.getElementById('maintenance');
+  maint.style.display='none';
+  list.style.display='flex';
+  if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+}
+
+async function load(){
+  const ds=fmt(current);
+  const dateLabel=document.getElementById('dateLabel');
+  dateLabel.textContent=ds+' '+weekday(current);
+  const today=todayStart();
+  document.getElementById('next').disabled = current>=today;
+  document.getElementById('prev').disabled = false;
+  const list=document.getElementById('list');
+  hideMaintenance();
+  list.innerHTML='<div class="loading">加载中…</div>';
+  const url='api/status?date='+ds;
+  let data;
+  try{ const r=await fetch(url); if(!r.ok) throw new Error('http '+r.status); data=await r.json(); if(!data || !Array.isArray(data.models)) throw new Error('bad data'); curSlow = data.slow_ms || 10000; }catch(e){ console.error(e); showMaintenance(); return; }
+  let html='', gidx=0;
+  slotData=[];
+  data.models.forEach(m=>{
+    const s=m.slots.filter(x=>x.ok!==null);
+    const ok=s.filter(x=>x.ok).length, fail=s.length-ok;
+    const rate=s.length? (ok/s.length*100):0;
+    const availCls= rate>=90?'good':(rate>=60?'warn':'bad');
+    let bars='';
+    m.slots.forEach((x,i)=>{
+      const cls = x.ok===null?'empty':(x.ok ? (x.latency_ms>curSlow?'warn':'ok') : 'fail');
+      const info = { model: m.model, time: x.time, ok: (x.ok===null?null:x.ok), lat: x.latency_ms, err: (!x.ok && x.message) ? x.message.trim() : '' };
+      slotData.push(info);
+      bars+='<span class="bar '+cls+'" data-i="'+gidx+'"></span>';
+      gidx++;
+    });
+    html+='<div class="row"><div class="name" title="'+m.model+'">'+m.model+'</div><div class="timeline">'+bars+'</div>'+
+      '<div class="stats"><div class="avail '+availCls+'">可用率 '+(s.length? rate.toFixed(1):0)+'%</div></div></div>';
+  });
+  list.innerHTML=html;
+}
+
+function placeTip(bar, html){
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = html;
+  tip.style.display='block';
+  const rect = bar.getBoundingClientRect();
+  const th = tip.offsetHeight;
+  let left = rect.left + rect.width/2;
+  let top = rect.top - 8;
+  let transform = 'translate(-50%, -100%)';
+  if(rect.top - th - 8 < 0){ top = rect.bottom + 8; transform = 'translate(-50%, 0)'; }
+  tip.style.left = left+'px';
+  tip.style.top = top+'px';
+  tip.style.transform = transform;
+}
+
+function showTip(bar){
+  const info = slotData[Number(bar.dataset.i)] || {};
+  const [stCls, stTxt] = statusText(info);
+  let html = '<div class="tt-time">'+info.time+'</div><div class="tt-status '+stCls+'">'+stTxt+'</div>';
+  if(info.lat!==null && info.lat!==undefined) html += '<div class="tt-lat">延迟 '+info.lat+'ms</div>';
+  if(!info.ok && info.err) html += '<div class="tt-err">'+escHtml(info.err)+'</div>';
+  placeTip(bar, html);
+}
+
+function copyInfo(info){
+  const [stCls, stTxt] = statusText(info);
+  let txt = '模型：'+info.model+'\n时间：'+info.time+'\n状态：'+stTxt;
+  if(info.lat!==null && info.lat!==undefined) txt += '\n延迟：'+info.lat+'ms';
+  if(!info.ok && info.err) txt += '\n错误：'+info.err;
+  return txt;
+}
+function fallbackCopy(txt){
+  const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
+function copyText(txt){
+  if(navigator.clipboard && navigator.clipboard.writeText){ return navigator.clipboard.writeText(txt).catch(function(){ fallbackCopy(txt); }); }
+  try{ fallbackCopy(txt); return Promise.resolve(); }catch(e){ return Promise.reject(e); }
+}
+
+function renderCalendar(){
+  const cal = document.getElementById('calendar');
+  const today = todayStart();
+  const first = new Date(viewYear, viewMonth, 1);
+  const startDow = first.getDay();
+  const offset = (startDow + 6) % 7; // 周一开头
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  let html = '<div class="cal-head"><button id="calPrev">‹</button><div class="cal-title">'+viewYear+'年'+(viewMonth+1)+'月</div><button id="calNext">›</button></div>';
+  html += '<div class="cal-grid">';
+  ['一','二','三','四','五','六','日'].forEach(d=> html+='<div class="dow">'+d+'</div>');
+  for(let i=0;i<offset;i++) html+='<div class="day blank"></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const dt = new Date(viewYear, viewMonth, d);
+    const isSel = (dt.getFullYear()===current.getFullYear() && dt.getMonth()===current.getMonth() && dt.getDate()===current.getDate());
+    const disabled = dt > today;
+    html+='<div class="day '+(isSel?'sel ':'')+(disabled?'disabled':'')+'" data-d="'+d+'">'+d+'</div>';
+  }
+  html += '</div>';
+  cal.innerHTML = html;
+  document.getElementById('calPrev').onclick=function(){ viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} renderCalendar(); };
+  document.getElementById('calNext').onclick=function(){ viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} renderCalendar(); };
+  cal.querySelectorAll('.day:not(.blank):not(.disabled)').forEach(function(el){
+    el.onclick=function(){ const d=Number(el.dataset.d); current=new Date(viewYear, viewMonth, d); calOpen=false; document.getElementById('calendar').classList.remove('open'); load(); };
+  });
+}
+
+function toggleCalendar(){
+  calOpen = !calOpen;
+  if(calOpen){ const d=new Date(current); viewYear=d.getFullYear(); viewMonth=d.getMonth(); renderCalendar(); }
+  document.getElementById('calendar').classList.toggle('open', calOpen);
+}
+
+document.getElementById('dateLabel').onclick=function(e){ e.stopPropagation(); toggleCalendar(); };
+document.addEventListener('click', function(e){ if(calOpen && !e.target.closest('.datepicker')){ calOpen=false; document.getElementById('calendar').classList.remove('open'); } });
+
+document.getElementById('prev').onclick=function(){ const t=new Date(current); t.setDate(t.getDate()-1); current=t; load(); };
+document.getElementById('next').onclick=function(){ const t=new Date(current); t.setDate(t.getDate()+1); current=t; load(); };
+document.getElementById('today').onclick=function(){ current=todayStart(); load(); };
+
+// 悬停显示、移出收起、点击复制
+const tipEl=document.getElementById('tooltip');
+document.addEventListener('mouseover', function(e){
+  const b=e.target.closest('.bar');
+  if(b){ if(hideTimer){ clearTimeout(hideTimer); hideTimer=null; } showTip(b); }
+});
+document.addEventListener('mouseout', function(e){
+  const b=e.target.closest('.bar');
+  if(b){ tipEl.style.display='none'; if(hideTimer){ clearTimeout(hideTimer); hideTimer=null; } }
+});
+document.addEventListener('click', function(e){
+  const b=e.target.closest('.bar');
+  if(b){
+    const info = slotData[Number(b.dataset.i)] || {};
+    copyText(copyInfo(info));
+    placeTip(b, '<div class="tt-status ok">已复制</div>');
+    setTimeout(function(){ tipEl.style.display='none'; }, 1200);
+  }
+});
+
+function renderCalendar(){
+  const cal = document.getElementById('calendar');
+  const today = todayStart();
+  const first = new Date(viewYear, viewMonth, 1);
+  const startDow = first.getDay();
+  const offset = (startDow + 6) % 7;
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  let html = '<div class="cal-head"><button id="calPrev">‹</button><div class="cal-title">'+viewYear+'年'+(viewMonth+1)+'月</div><button id="calNext">›</button></div>';
+  html += '<div class="cal-grid">';
+  ['一','二','三','四','五','六','日'].forEach(d=> html+='<div class="dow">'+d+'</div>');
+  for(let i=0;i<offset;i++) html+='<div class="day blank"></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const dt = new Date(viewYear, viewMonth, d);
+    const isSel = (dt.getFullYear()===current.getFullYear() && dt.getMonth()===current.getMonth() && dt.getDate()===current.getDate());
+    const disabled = dt > today;
+    html+='<div class="day '+(isSel?'sel ':'')+(disabled?'disabled':'')+'" data-d="'+d+'">'+d+'</div>';
+  }
+  html += '</div>';
+  cal.innerHTML = html;
+  document.getElementById('calPrev').onclick=function(){ viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} renderCalendar(); };
+  document.getElementById('calNext').onclick=function(){ viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} renderCalendar(); };
+  cal.querySelectorAll('.day:not(.blank):not(.disabled)').forEach(function(el){
+    el.onclick=function(){ const d=Number(el.dataset.d); current=new Date(viewYear, viewMonth, d); calOpen=false; document.getElementById('calendar').classList.remove('open'); load(); };
+  });
+}
+
+function toggleCalendar(){
+  calOpen = !calOpen;
+  if(calOpen){ const d=new Date(current); viewYear=d.getFullYear(); viewMonth=d.getMonth(); renderCalendar(); }
+  document.getElementById('calendar').classList.toggle('open', calOpen);
+}
+
+document.addEventListener('DOMContentLoaded', function(){ load(); });
+if(timer) clearInterval(timer); timer=setInterval(load, 30000);
+</script>
+</body>
+</html>

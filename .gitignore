@@ -1,0 +1,21 @@
+# 敏感配置
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 数据与运行产物
+data/
+*.db
+*.sqlite3
+logs/
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
