@@ -252,6 +252,8 @@ def save_vendor(payload, username, vendor_key=None):
             action="update"
         else:
             conn.execute("INSERT INTO monitor_vendors(vendor_key,display_name,base_url,api_key_ciphertext,api_key_nonce,enabled,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",(key,name,url,cipher,nonce,1 if payload.get("enabled",True) else 0,int(payload.get("sort_order",0)),now,now)); action="create"
+        # 更新持久化配置版本，供管理页和运行快照追踪
+        conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (now,))
         _audit(username,action,"vendor",key,{"api_key_changed":bool(secret) or clear_api_key,"api_key_cleared":clear_api_key},conn); conn.commit()
     finally: conn.close()
 
@@ -277,6 +279,8 @@ def save_model(payload, username, model_key=None):
             conn.execute("UPDATE monitor_models SET vendor_id=?,display_name=?,enabled=?,sort_order=?,updated_at=? WHERE model_key=?",(vendor_row[0],name or None,1 if payload.get("enabled",True) else 0,int(payload.get("sort_order",0)),now,key)); action="update"
         else:
             conn.execute("INSERT INTO monitor_models(vendor_id,model_key,display_name,enabled,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",(vendor_row[0],key,name or None,1 if payload.get("enabled",True) else 0,int(payload.get("sort_order",0)),now,now)); action="create"
+        # 更新持久化配置版本，供管理页和运行快照追踪
+        conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (now,))
         _audit(username,action,"model",key,{},conn); conn.commit()
     finally: conn.close()
 
@@ -299,6 +303,7 @@ def delete_model(model_key, username):
             if not row: raise ValueError("模型不存在")
             conn.execute("DELETE FROM probe_records WHERE model=?",(model_key,))
             conn.execute("DELETE FROM monitor_models WHERE id=?",(row[0],))
+            conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (_now(),))
             _audit(username,"delete","model",model_key,{"history_deleted":True},conn)
             conn.commit()
         finally:
@@ -316,7 +321,9 @@ def delete_vendor(vendor_key, username):
             if not row: raise ValueError("厂商不存在")
             keys=[r[0] for r in conn.execute("SELECT model_key FROM monitor_models WHERE vendor_id=?",(row[0],)).fetchall()]
             for key in keys: conn.execute("DELETE FROM probe_records WHERE model=?",(key,))
-            conn.execute("DELETE FROM monitor_models WHERE vendor_id=?",(row[0],)); conn.execute("DELETE FROM monitor_vendors WHERE id=?",(row[0],)); _audit(username,"delete","vendor",vendor_key,{"models_deleted":len(keys),"history_deleted":True},conn); conn.commit()
+            conn.execute("DELETE FROM monitor_models WHERE vendor_id=?",(row[0],)); conn.execute("DELETE FROM monitor_vendors WHERE id=?",(row[0],))
+            conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (_now(),))
+            _audit(username,"delete","vendor",vendor_key,{"models_deleted":len(keys),"history_deleted":True},conn); conn.commit()
         finally: conn.close()
 
 
@@ -378,6 +385,22 @@ def get_session(token_hash):
             conn.execute("DELETE FROM admin_sessions WHERE token_hash=?",(token_hash,)); conn.commit(); return None
         conn.execute("UPDATE admin_sessions SET last_seen_at=? WHERE token_hash=?",(now.isoformat(),token_hash)); conn.commit(); return {"token_hash":row[0],"csrf_token_hash":row[1],"username":row[2],"csrf_token":""}
     finally: conn.close()
+
+
+def rotate_csrf(token_hash, csrf_token_hash):
+    """替换管理会话的 CSRF 哈希，支持页面刷新后恢复写权限。
+
+    @param token_hash 当前会话令牌哈希。
+    @param csrf_token_hash 新 CSRF 令牌哈希。
+    @return None
+    """
+    # 将新 CSRF 哈希写入现有有效会话
+    conn=_connect()
+    try:
+        conn.execute("UPDATE admin_sessions SET csrf_token_hash=?,last_seen_at=? WHERE token_hash=?", (csrf_token_hash,_now(),token_hash))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def delete_session(token_hash):

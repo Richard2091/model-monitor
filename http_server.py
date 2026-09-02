@@ -153,10 +153,13 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError: return self._json({"error": "invalid date"}, 400)
             return self._json(database.build_query(d))
         if parsed.path == "/api/admin/session":
-            session, _ = _session(self)
+            session, token = _session(self)
             if not session:
                 return self._json({"authenticated": False})
-            return self._json({"authenticated": True, "username": session["username"], "csrf_token": session.get("csrf_token", "")})
+            # 每次页面恢复时轮换 CSRF 令牌，不在数据库保存明文
+            csrf = secrets.token_urlsafe(32)
+            database.rotate_csrf(hash_token(token), hash_token(csrf))
+            return self._json({"authenticated": True, "username": session["username"], "csrf_token": csrf})
         if parsed.path == "/api/admin/config":
             if not _admin_required(self): return
             return self._json(database.list_admin_config())
