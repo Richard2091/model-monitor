@@ -95,6 +95,27 @@ class ModelMonitorRegressionTest(unittest.TestCase):
         self._old_database_config = {name: getattr(database.config, name) for name in names}
         self._old_db_path = database.config.DB_PATH
 
+    def test_default_models_exclude_disabled_vendors(self):
+        """校验内置模型清单已移除停用的 DeepSeek 与 GLM 模型。"""
+        # 检查默认清单保留可用的 GPT 与 Qwen 模型
+        self.assertEqual(list(config.DEFAULT_MODELS), [
+            "gpt-5.4", "gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra",
+            "qwen3.7-flash", "qwen3.7-plus",
+        ])
+        # 检查停用厂商模型不会进入默认监控列表
+        self.assertNotIn("deepseek-v4-flash", config.MODELS)
+        self.assertNotIn("deepseek-v4-flash-vision-exp", config.MODELS)
+        self.assertNotIn("glm-5.3-flash", config.MODELS)
+
+    def test_parse_models_trims_empty_items_and_deduplicates(self):
+        """校验模型配置可清理空项、空白并保持首次出现顺序。"""
+        # 模拟来自 .env 或环境变量的多厂商模型配置
+        raw_models = " qwen3.7-plus, ,gpt-5.5,qwen3.7-plus, gpt-5.4 "
+        # 解析配置并检查规范化结果
+        self.assertEqual(config._parse_models(raw_models), [
+            "qwen3.7-plus", "gpt-5.5", "gpt-5.4",
+        ])
+
     def test_parse_time_accepts_valid_values_and_rejects_invalid_ranges(self):
         """校验时间解析支持合法边界，并拒绝非法小时和分钟。"""
         # 解析当天最小时间与最大时间
@@ -274,5 +295,3 @@ class ModelMonitorRegressionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

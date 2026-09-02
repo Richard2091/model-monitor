@@ -93,8 +93,24 @@ PROBE_INTERVAL = PROBE_INTERVAL_MIN * 60
 SLOW_THRESHOLD_MS = _get_int("SLOW_THRESHOLD_MS", "10000")
 # 监控时段：多段，逗号分隔，格式 HH:MM-HH:MM，默认 08:00-22:00，含起点与终点
 MONITOR_WINDOWS_STR = _get("MONITOR_WINDOWS", "08:00-22:00")
-# 待监控模型列表，逗号分隔
-MODELS = [m.strip() for m in _get("MODELS", "deepseek-v4-flash,deepseek-v4-flash-vision-exp,glm-5.3-flash,gpt-5.4,gpt-5.5,gpt-5.6-sol,gpt-5.6-terra,qwen3.7-flash,qwen3.7-plus").split(",") if m.strip()]
+# 默认监控模型列表；实际运行时优先使用 .env 或环境变量 MODELS 覆盖。
+DEFAULT_MODELS = ("gpt-5.4", "gpt-5.5", "gpt-5.6-sol", "gpt-5.6-terra", "qwen3.7-flash", "qwen3.7-plus")
+
+
+def _parse_models(raw_models):
+    """解析逗号分隔的模型配置，去除空白并按首次出现顺序去重。
+
+    @param raw_models 原始模型配置字符串
+    @return 去重后的模型名称列表
+    """
+    # 按逗号拆分模型名称并清理首尾空白
+    models = [model.strip() for model in str(raw_models or "").split(",") if model.strip()]
+    # 保持用户配置顺序，同时去除重复模型
+    return list(dict.fromkeys(models))
+
+
+# 从 .env 或环境变量读取模型列表，支持随时增删改多个厂商模型
+MODELS = _parse_models(_get("MODELS", ",".join(DEFAULT_MODELS)))
 # 模型列表为空时记录警告
 if not MODELS:
     logger.warning("MODELS is empty, no models will be probed.")
