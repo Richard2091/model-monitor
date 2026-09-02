@@ -49,7 +49,8 @@ def probe_model(target):
     t0 = time.time()
     # 发送请求并解析响应
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        # 将上游请求超时阈值设为 60 秒，只有超过该时长才判定为探测失败
+        with urllib.request.urlopen(req, timeout=60) as resp:
             status = resp.status
             body = resp.read().decode("utf-8", errors="replace")
         # 判断 HTTP 状态码是否成功
