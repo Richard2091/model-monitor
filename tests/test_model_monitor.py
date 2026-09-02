@@ -5,7 +5,10 @@ import importlib
 import os
 import sys
 import tempfile
+import subprocess
 import unittest
+import re
+from pathlib import Path
 from datetime import datetime
 from email.message import Message
 from unittest.mock import patch
@@ -115,6 +118,54 @@ class ModelMonitorRegressionTest(unittest.TestCase):
         self.assertEqual(config._parse_models(raw_models), [
             "qwen3.7-plus", "gpt-5.5", "gpt-5.4",
         ])
+
+    def test_models_configuration_precedence_uses_environment_over_env_file(self):
+        """校验 .env 提供模型清单，且进程环境变量优先覆盖 .env。"""
+        # 准备仅包含模型配置的临时 .env 文件
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as env_file:
+            env_file.write("MODELS=from-file,from-file,qwen3.7-plus\n")
+            env_path = env_file.name
+        try:
+            # 构造干净的子进程环境，避免宿主配置干扰优先级验证
+            child_env = os.environ.copy()
+            for name in _CONFIG_ENV_NAMES:
+                child_env.pop(name, None)
+            child_env["ENV_FILE"] = env_path
+            child_env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+            # 没有进程级 MODELS 时读取 .env 并去重
+            file_result = subprocess.run(
+                [sys.executable, "-c", "import config; print(','.join(config.MODELS))"],
+                env=child_env, capture_output=True, text=True, check=True,
+            )
+            self.assertEqual(file_result.stdout.strip(), "from-file,qwen3.7-plus")
+            # 进程级 MODELS 存在时覆盖 .env，并继续执行清理与去重
+            child_env["MODELS"] = "from-process,from-process,gpt-5.5"
+            process_result = subprocess.run(
+                [sys.executable, "-c", "import config; print(','.join(config.MODELS))"],
+                env=child_env, capture_output=True, text=True, check=True,
+            )
+            self.assertEqual(process_result.stdout.strip(), "from-process,gpt-5.5")
+        finally:
+            # 删除临时配置文件，避免测试文件残留
+            os.unlink(env_path)
+
+    def test_preview_contains_six_models_and_expected_time_range(self):
+        """校验预览页模型清单与 08:00-22:00 的 5 分钟时间轴保持正确。"""
+        # 读取独立预览页面中的模拟模型定义
+        preview_path = Path(__file__).resolve().parents[1] / "preview.html"
+        preview = preview_path.read_text(encoding="utf-8")
+        model_names = re.findall(r"\{model:'([^']+)', slots:\[\]\}", preview)
+        # 校验预览只展示当前默认的六个模型
+        self.assertEqual(model_names, list(config.DEFAULT_MODELS))
+        self.assertNotIn("deepseek-v4-flash", model_names)
+        self.assertNotIn("deepseek-v4-flash-vision-exp", model_names)
+        self.assertNotIn("glm-5.3-flash", model_names)
+        # 校验模拟数据包含起止时间、5 分钟步长和 169 个点位
+        self.assertIn("const totalMinutes=8*60+index*5", preview)
+        self.assertIn("for(let index=0; index<=168; index++)", preview)
+        self.assertIn("time:String(Math.floor(totalMinutes/60))", preview)
+        self.assertEqual(8 * 60 + 0 * 5, 480)
+        self.assertEqual(8 * 60 + 168 * 5, 1320)
 
     def test_parse_time_accepts_valid_values_and_rejects_invalid_ranges(self):
         """校验时间解析支持合法边界，并拒绝非法小时和分钟。"""
