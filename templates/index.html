@@ -172,6 +172,16 @@ function statusText(info){
 }
 
 /**
+ * 将毫秒延迟格式化为秒，固定保留两位小数。
+ * @param {number|null|undefined} latencyMs 原始毫秒延迟
+ * @return {string} 秒值及单位；无效值返回空字符串
+ */
+function formatLatencySeconds(latencyMs){
+  if(latencyMs===null || latencyMs===undefined || !Number.isFinite(Number(latencyMs))) return '';
+  return (Number(latencyMs) / 1000).toFixed(2) + 's';
+}
+
+/**
  * 根据模型名称开头的连续英文字母提取模型系列。
  * @param {string} model 模型名称。
  * @return {string} 返回小写系列前缀；无法识别时返回“其他”。
@@ -367,7 +377,8 @@ function showTip(bar){
   const info = slotData[Number(bar.dataset.i)] || {};
   const [stCls, stTxt] = statusText(info);
   let html = '<div class="tt-time">'+escHtml(info.time)+'</div><div class="tt-status '+stCls+'">'+stTxt+'</div>';
-  if(info.lat!==null && info.lat!==undefined) html += '<div class="tt-lat">延迟 '+info.lat+'ms</div>';
+  const latencyText = formatLatencySeconds(info.lat);
+  if(latencyText) html += '<div class="tt-lat">延迟 '+latencyText+'</div>';
   if(!info.ok && info.err) html += '<div class="tt-err">'+escHtml(info.err)+'</div>';
   placeTip(bar, html);
 }
@@ -380,7 +391,8 @@ function showTip(bar){
 function copyInfo(info){
   const [stCls, stTxt] = statusText(info);
   let txt = '模型：'+info.model+'\n时间：'+info.time+'\n状态：'+stTxt;
-  if(info.lat!==null && info.lat!==undefined) txt += '\n延迟：'+info.lat+'ms';
+  const latencyText = formatLatencySeconds(info.lat);
+  if(latencyText) txt += '\n延迟：'+latencyText;
   if(!info.ok && info.err) txt += '\n错误：'+info.err;
   return txt;
 }
