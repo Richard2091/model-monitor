@@ -254,6 +254,8 @@ def save_vendor(payload, username, vendor_key=None):
             conn.execute("INSERT INTO monitor_vendors(vendor_key,display_name,base_url,api_key_ciphertext,api_key_nonce,enabled,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",(key,name,url,cipher,nonce,1 if payload.get("enabled",True) else 0,int(payload.get("sort_order",0)),now,now)); action="create"
         # 更新持久化配置版本，供管理页和运行快照追踪
         conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (now,))
+        # 配置成功写入后递增业务版本，供管理页和运行快照追踪
+        conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (_now(),))
         _audit(username,action,"vendor",key,{"api_key_changed":bool(secret) or clear_api_key,"api_key_cleared":clear_api_key},conn); conn.commit()
     finally: conn.close()
 
@@ -281,6 +283,8 @@ def save_model(payload, username, model_key=None):
             conn.execute("INSERT INTO monitor_models(vendor_id,model_key,display_name,enabled,sort_order,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",(vendor_row[0],key,name or None,1 if payload.get("enabled",True) else 0,int(payload.get("sort_order",0)),now,now)); action="create"
         # 更新持久化配置版本，供管理页和运行快照追踪
         conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (now,))
+        # 配置成功写入后递增业务版本，供管理页和运行快照追踪
+        conn.execute("UPDATE monitor_settings SET version=version+1,updated_at=? WHERE id=1", (_now(),))
         _audit(username,action,"model",key,{},conn); conn.commit()
     finally: conn.close()
 
