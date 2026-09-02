@@ -12,6 +12,7 @@ import config
 import database
 import http_server
 import monitor
+import config_manager
 
 
 def main() -> None:
@@ -25,8 +26,9 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    # 初始化数据库
+    # 初始化数据库与配置快照
     database.init_db()
+    config_manager.initialize()
 
     # 启动后台探测线程（daemon，随进程退出）
     threading.Thread(target=monitor.monitor_loop, daemon=True).start()

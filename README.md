@@ -17,6 +17,10 @@ model-monitor/
 
 ├── database.py       # 数据：SQLite 初始化、写入探测记录、按槽位归并查询
 
+├── config_manager.py # 运行配置快照与动态刷新
+
+├── security.py       # API Key 加密与会话安全工具
+
 ├── monitor.py        # 探测：对模型发起可用性探测、后台定时循环
 
 ├── http_server.py    # 接口：提供监控页面与 JSON API（/、/api/status、/api/probe）
@@ -67,7 +71,26 @@ model-monitor/
 | `MODELS` | 待监控模型，逗号分隔；支持多个厂商和模型，环境变量优先于 `.env` | 6 个模型（GPT、Qwen） |
 
 
-修改配置后执行 `docker restart model-monitor` 生效。
+修改旧版 `.env` 配置后执行 `docker restart model-monitor` 生效。启用数据库配置管理后，管理页保存的厂商、模型和监控参数会在当前服务内动态生效，无需重启。
+
+### 配置管理页
+
+访问 `/model-monitor-admin` 进入“模型监控管理”。管理员账号、密码和 API Key 加密主密钥只从 `.env` 或进程环境读取：
+
+```dotenv
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=请设置管理员密码
+ADMIN_SESSION_TTL_MINUTES=480
+ADMIN_IDLE_TIMEOUT_MINUTES=30
+ADMIN_COOKIE_SECURE=false
+MODEL_MONITOR_MASTER_KEY=请填写 Base64URL 编码的 32 字节密钥
+MODEL_CONFIG_SOURCE=database
+```
+
+首次启动会将旧 `.env` 中的网关、模型、监控时间段和探测参数导入 SQLite，创建“默认网关”；已有数据库配置不会被 `.env` 覆盖。API Key 只保存 AES-256-GCM 密文，管理页面只显示“已配置”。
+
+将 `MODEL_CONFIG_SOURCE` 改为 `legacy-env` 后重启服务，可临时回退到旧版环境变量读取逻辑。停用只停止探测并隐藏页面、保留历史；删除会先创建 SQLite 在线备份，再删除配置及关联历史记录。
+
 
 ### 模型配置说明
 
@@ -120,7 +143,11 @@ docker run -d --name model-monitor \
 
 - `GET /`：监控页面（支持 `?theme=dark` 切换暗色）。
 
-- `GET /api/status?date=YYYY-MM-DD`：返回某日各模型的槽位数据。
+- `GET /api/status?date=YYYY-MM-DD`：返回某日当前启用模型的槽位数据。
+
+- `GET /model-monitor-admin`：配置管理页；未登录时跳转到登录页。
+
+- 管理接口提供登录、会话、厂商、模型、监控设置、测试连接和删除影响预览；写接口需要会话与 CSRF 令牌。
 
 - `POST /api/probe`：手动触发一次全量探测；必须携带请求头 `X-Monitor-Token: <PROBE_TOKEN>`，未配置 `PROBE_TOKEN` 时接口禁用。
 

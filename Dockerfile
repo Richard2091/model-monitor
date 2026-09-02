@@ -6,7 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends tzdata && rm -r
  && mkdir -p /data \
  && chown appuser:appuser /data
 WORKDIR /app
-COPY app.py config.py database.py monitor.py http_server.py ./
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app.py config.py database.py config_manager.py monitor.py http_server.py security.py ./
 COPY templates ./templates
 USER appuser
 EXPOSE 8090

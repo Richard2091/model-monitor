@@ -81,6 +81,14 @@ PORT = _get_int("PORT", "8090")
 HOST = _get("HOST", "0.0.0.0")
 # 手动探测鉴权 Token，空=禁用 /api/probe
 PROBE_TOKEN = _get("PROBE_TOKEN", "")
+# 管理页登录与密钥加密配置，仅从环境变量或 .env 读取
+ADMIN_USERNAME = _get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = _get("ADMIN_PASSWORD", "")
+ADMIN_SESSION_TTL_MINUTES = _get_int("ADMIN_SESSION_TTL_MINUTES", "480")
+ADMIN_IDLE_TIMEOUT_MINUTES = _get_int("ADMIN_IDLE_TIMEOUT_MINUTES", "30")
+ADMIN_COOKIE_SECURE = _get("ADMIN_COOKIE_SECURE", "false").lower() == "true"
+MODEL_MONITOR_MASTER_KEY = _get("MODEL_MONITOR_MASTER_KEY", "")
+MODEL_CONFIG_SOURCE = _get("MODEL_CONFIG_SOURCE", "database")
 
 # ===== 探测配置 =====
 # 探测间隔，单位分钟，默认 5
