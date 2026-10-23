@@ -13,7 +13,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Mi
 .topbar { position:relative; display:flex; align-items:center; gap:12px; min-height:46px; margin-bottom:16px; flex:0 0 auto; min-width:0; }
 .title-row { display:flex; align-items:flex-end; gap:12px; flex:0 0 auto; min-width:0; }
 .title { font-size:22px; font-weight:700; }
-.datepicker { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:4px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:4px 6px; white-space:nowrap; max-width:100%; }
+.datepicker { position:absolute; z-index:10000; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:4px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:4px 6px; white-space:nowrap; max-width:100%; }
 .datepicker button { background:transparent; border:none; color:var(--text); cursor:pointer; font-size:17px; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
 .datepicker button:hover { background:var(--border); }
 .datepicker button:disabled { opacity:.35; cursor:not-allowed; }
@@ -44,22 +44,19 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Mi
 .model-group-icon { width:18px; height:18px; flex:0 0 18px; display:grid; place-items:center; border-radius:50%; background:var(--card); overflow:hidden; }
 .model-group-icon img { width:15px; height:15px; display:block; object-fit:contain; }
 .model-group-count { flex:0 0 auto; color:var(--muted); font-size:11px; white-space:nowrap; padding:3px 7px; border:1px solid var(--border); border-radius:8px; background:transparent; }
-.model-group-rows { flex:0 0 auto; min-width:0; min-height:42px; display:flex; flex-direction:column; gap:0; }
-.row { position:relative; z-index:0; overflow:visible; flex:0 0 auto; min-width:0; min-height:42px; background:transparent; border:0; border-radius:0; padding:10px 2px; display:flex; align-items:center; gap:10px; transition:background .16s ease; }
+.model-group-rows { flex:0 0 auto; min-width:0; min-height:42px; display:flex; flex-direction:column; gap:2px; }
+.row { position:relative; z-index:0; overflow:visible; flex:0 0 auto; min-width:0; min-height:52px; background:transparent; border:0; border-radius:0; padding:14px 2px; display:flex; align-items:center; gap:12px; transition:background .16s ease; }
 .row + .row { border-top:1px solid color-mix(in srgb, var(--border) 78%, transparent); }
 .row:hover { z-index:1; background:color-mix(in srgb, var(--primary) 6%, transparent); }
-.row .name { width:150px; flex:0 1 150px; min-width:0; max-width:100%; font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+.row .name { width:160px; flex:0 1 160px; min-width:0; max-width:100%; font-weight:600; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
 .timeline { position:relative; z-index:1; flex:1 1 auto; display:flex; gap:1px; align-items:stretch; min-width:0; overflow:visible; }
-.timeline .bar { position:relative; z-index:1; flex:1 1 0; min-width:1px; height:18px; border-radius:2px; transition:transform .12s ease; }
+.timeline .bar { position:relative; z-index:1; flex:1 1 0; min-width:1px; height:20px; border-radius:2px; transition:transform .12s ease; }
 .bar.ok { background:var(--ok); }
 .bar.fail { background:var(--fail); }
 .bar.warn { background:#f59e0b; }
 .bar.empty { background:var(--empty); }
 .bar:hover { z-index:2; transform:scale(1.15); }
 .bar:active { transform:scale(1.2); }
-.stats { flex:0 0 112px; min-width:0; text-align:right; white-space:nowrap; }
-.stats .avail { font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.stats .avail.good { color:#059669; } .stats .avail.warn { color:#b45309; } .stats .avail.bad { color:#dc2626; }
 .legend { display:flex; gap:10px; font-size:13px; color:var(--muted); align-items:center; white-space:nowrap; flex-wrap:nowrap; margin:0; padding-bottom:1px; }
 .legend span { display:flex; align-items:center; gap:4px; }
 .legend i { width:10px; height:10px; border-radius:50%; display:inline-block; }
@@ -84,7 +81,6 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Mi
   .legend { flex-wrap:wrap; }
   .row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; row-gap:8px; column-gap:8px; padding:9px 2px; }
   .row .name { width:auto; max-width:100%; flex:none; min-width:0; padding-top:0; }
-  .stats { grid-column:auto; margin-left:0; min-width:0; flex:none; }
   .timeline { grid-column:1 / -1; flex:none; width:100%; min-width:0; min-height:18px; }
   .model-group { min-height:108px; }
 }
@@ -96,8 +92,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Mi
   .model-group-icon img { width:15px; height:15px; }
   .row { grid-template-columns:minmax(0,1fr); padding:9px 2px; overflow:visible; }
   .row .name { width:100%; }
-  .stats { grid-column:1; text-align:left; }
-  .timeline { min-height:18px; }
+  .timeline { min-height:18px; gap:0; }
 }
 .maint-title { font-size:20px; font-weight:700; margin-bottom:8px; }
 .maint-desc { color:var(--muted); font-size:14px; line-height:1.8; margin-bottom:18px; }
@@ -257,7 +252,7 @@ function hideMaintenance(){
 }
 
 /**
- * 加载指定日期的模型状态数据，并渲染时间线与可用率。
+ * 加载指定日期的模型状态数据，并渲染时间线。
  * @return {Promise<void>} 无返回值；失败时切换到维护提示。
  */
 async function load(){
@@ -300,10 +295,6 @@ async function load(){
     let rowsHtml='';
     // 渲染系列内的每个模型行，保留原有状态柱和提示数据逻辑
     group.models.forEach(function(m){
-      const s=m.slots.filter(x=>x.ok!==null);
-      const ok=s.filter(x=>x.ok).length;
-      const rate=s.length? (ok/s.length*100):0;
-      const availCls= rate>=90?'good':(rate>=60?'warn':'bad');
       let bars='';
       m.slots.forEach(function(x){
         // 根据探测结果生成正常、缓慢、失败或未监控状态
@@ -316,8 +307,7 @@ async function load(){
       });
       // 转义模型名，保证 title 属性和元素内容两处上下文均安全
       const safeModel = escHtml(m.model);
-      rowsHtml+='<div class="row"><div class="name" data-model="'+safeModel+'">'+safeModel+'</div><div class="timeline">'+bars+'</div>'+
-        '<div class="stats"><div class="avail '+availCls+'">可用率 '+(s.length? rate.toFixed(1):0)+'%</div></div></div>';
+      rowsHtml+='<div class="row"><div class="name" data-model="'+safeModel+'">'+safeModel+'</div><div class="timeline">'+bars+'</div></div>';
     });
     // 输出系列标题与数量，明确圆角矩形边界包裹同系列模型
     html+='<section class="model-group" aria-label="模型系列 '+safeSeriesLabel+'">'+
@@ -367,7 +357,10 @@ function showTip(bar){
   const info = slotData[Number(bar.dataset.i)] || {};
   const [stCls, stTxt] = statusText(info);
   let html = '<div class="tt-time">'+escHtml(info.time)+'</div><div class="tt-status '+stCls+'">'+stTxt+'</div>';
-  if(info.lat!==null && info.lat!==undefined) html += '<div class="tt-lat">延迟 '+info.lat+'ms</div>';
+  if(info.lat!==null && info.lat!==undefined) {
+    const seconds = parseFloat((Number(info.lat) / 1000).toFixed(2));
+    html += '<div class="tt-lat">延迟 '+seconds+'秒</div>';
+  }
   if(!info.ok && info.err) html += '<div class="tt-err">'+escHtml(info.err)+'</div>';
   placeTip(bar, html);
 }

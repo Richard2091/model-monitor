@@ -123,6 +123,10 @@ MODELS = _parse_models(_get("MODELS", ",".join(DEFAULT_MODELS)))
 if not MODELS:
     logger.warning("MODELS is empty, no models will be probed.")
 
+# 使用 Responses API 探测的模型列表；其他模型继续使用 Chat Completions。
+DEFAULT_RESPONSES_MODELS = ("gpt-6-astra",)
+RESPONSES_MODELS = _parse_models(_get("RESPONSES_MODELS", ",".join(DEFAULT_RESPONSES_MODELS)))
+
 
 def _parse_time(hhmm):
     """解析 HH:MM 为当日分钟数，校验小时与分钟范围。

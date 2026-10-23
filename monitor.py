@@ -31,14 +31,21 @@ def probe_lock():
 
 
 def probe_model(target):
-    """对单个厂商模型发起最小聊天请求探测。
+    """按模型配置对单个厂商模型发起最小请求探测。
 
     @param target 模型与厂商连接配置
     @return 字典：ok(是否成功)、latency_ms、status_code、message
     """
-    # 使用快照中的厂商地址和模型 ID 构建探测请求
-    url = target.base_url.rstrip("/") + "/v1/chat/completions"
-    payload = {"model": target.model_key, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}
+    # Responses API 模型使用独立端点和请求结构，其余模型保持旧协议。
+    use_responses = target.model_key in config.RESPONSES_MODELS
+    if use_responses:
+        url = target.base_url.rstrip("/") + "/v1/responses"
+        payload = {"model": target.model_key, "input": "ping", "max_output_tokens": 50}
+        required_response_field = "output"
+    else:
+        url = target.base_url.rstrip("/") + "/v1/chat/completions"
+        payload = {"model": target.model_key, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}
+        required_response_field = "choices"
     data = json.dumps(payload).encode("utf-8")
     # 构建带鉴权的 HTTP 请求
     req = urllib.request.Request(url, data=data, headers={
@@ -56,12 +63,12 @@ def probe_model(target):
         # 判断 HTTP 状态码是否成功
         ok = 200 <= status < 300
         if ok:
-            # 成功响应时校验返回体中是否包含 choices
+            # HTTP 成功时仍校验对应协议的核心响应字段。
             try:
                 parsed = json.loads(body)
-                if "choices" not in parsed:
+                if required_response_field not in parsed:
                     ok = False
-                    body = "missing choices"
+                    body = "missing " + required_response_field
             except (ValueError, KeyError):
                 ok = False
                 body = "invalid json"

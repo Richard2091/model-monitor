@@ -69,6 +69,7 @@ model-monitor/
 | `MONITOR_WINDOWS` | 监控时段，多段用逗号分隔，格式 `HH:MM-HH:MM`，含起点与终点 | `08:00-22:00` |
 
 | `MODELS` | 待监控模型，逗号分隔；支持多个厂商和模型，环境变量优先于 `.env` | 6 个模型（GPT、Qwen） |
+| `RESPONSES_MODELS` | 使用 Responses API 探测的模型，逗号分隔；其余模型使用 Chat Completions | `gpt-6-astra` |
 
 
 修改旧版 `.env` 配置后执行 `docker restart model-monitor` 生效。启用数据库配置管理后，管理页保存的厂商、模型和监控参数会在当前服务内动态生效，无需重启。
@@ -98,6 +99,7 @@ MODEL_CONFIG_SOURCE=database
 
 ```dotenv
 MODELS=gpt-5.5,qwen3.7-plus,claude-3-7-sonnet
+RESPONSES_MODELS=gpt-6-astra
 ```
 
 - 配置优先级：进程环境变量 `MODELS` > `.env` 中的 `MODELS` > 内置默认模型清单。
@@ -105,6 +107,13 @@ MODELS=gpt-5.5,qwen3.7-plus,claude-3-7-sonnet
 - 页面会根据模型名称开头的英文前缀自动识别厂商系列并分组，例如 `qwen3.7-plus` 归入 `Qwen`；新增厂商无需修改后端代码即可被探测和展示。
 - 删除模型只会停止后续探测并隐藏页面展示，不会删除 SQLite 中已有的历史记录。
 - 当前内置默认清单已移除 `DeepSeek` 和 `GLM-5.3-flash`；如需恢复，可在 `.env` 或环境变量中显式加入对应模型名称。
+
+`RESPONSES_MODELS` 用于选择探测协议。列表中的模型会请求 `/v1/responses`，发送 `input` 和 `max_output_tokens`，并校验响应中的 `output` 字段；其他模型继续请求 `/v1/chat/completions`，发送 `messages` 和 `max_tokens`，并校验 `choices` 字段。例如：
+
+```dotenv
+MODELS=gpt-5.5,gpt-5.6-terra,gpt-5.6-sol,gpt-6-astra
+RESPONSES_MODELS=gpt-5.5,gpt-5.6-terra,gpt-5.6-sol,gpt-6-astra
+```
 
 
 
