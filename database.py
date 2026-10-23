@@ -69,6 +69,12 @@ def init_db():
         conn.execute("""CREATE TABLE IF NOT EXISTS admin_audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, action TEXT NOT NULL,
             resource_type TEXT NOT NULL, resource_id TEXT, detail_json TEXT, created_at TEXT NOT NULL)""")
+        # 创建告警状态表与告警邮件发送记录表
+        conn.execute("""CREATE TABLE IF NOT EXISTS alert_state (
+            model TEXT PRIMARY KEY, ok INTEGER NOT NULL, changed_at TEXT NOT NULL)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS alert_emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sent_at TEXT NOT NULL, subject TEXT,
+            success INTEGER NOT NULL, error TEXT)""")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_monitor_models_vendor ON monitor_models(vendor_id, enabled, sort_order)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON admin_sessions(expires_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_logs(created_at)")
@@ -106,6 +112,74 @@ def save_record(model, result):
     try:
         conn.execute("INSERT INTO probe_records(model,probed_at,ok,latency_ms,status_code,message) VALUES(?,?,?,?,?,?)", (model, config.now_local().isoformat(), 1 if result["ok"] else 0, result.get("latency_ms"), result.get("status_code"), result.get("message", "")))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def get_alert_states():
+    """读取全部模型的上次告警状态。
+
+    @return 字典：模型ID -> 上次是否正常（bool）
+    """
+    # 读取 alert_state 全表并转换为布尔状态
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT model, ok FROM alert_state").fetchall()
+        return {model: bool(ok) for model, ok in rows}
+    finally:
+        conn.close()
+
+
+def save_alert_states(states):
+    """批量写入（覆盖）模型告警状态，同一事务内完成。
+
+    @param states 列表，元素为 (模型ID, 是否正常, 变化时间ISO字符串)
+    @return None
+    """
+    # 无变化时不必打开连接
+    if not states:
+        return
+    conn = _connect()
+    try:
+        # 以模型ID为主键做 upsert，保证重复写入幂等
+        conn.executemany(
+            "INSERT INTO alert_state(model,ok,changed_at) VALUES(?,?,?) "
+            "ON CONFLICT(model) DO UPDATE SET ok=excluded.ok, changed_at=excluded.changed_at",
+            [(model, 1 if ok else 0, changed_at) for model, ok, changed_at in states])
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def record_alert_email(subject, success, error=None):
+    """记录一次告警邮件发送尝试（成功或失败均计入每日上限）。
+
+    @param subject 邮件主题
+    @param success 是否发送成功
+    @param error 失败时的错误信息
+    @return None
+    """
+    # 以当前本地时间写入发送记录
+    conn = _connect()
+    try:
+        conn.execute("INSERT INTO alert_emails(sent_at,subject,success,error) VALUES(?,?,?,?)",
+                     (config.now_local().isoformat(), subject, 1 if success else 0, error))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def count_alert_emails(date_str):
+    """统计某天的告警邮件发送尝试次数（成功加失败）。
+
+    @param date_str 日期字符串，格式 YYYY-MM-DD
+    @return 当天记录数
+    """
+    # sent_at 为本地时间 ISO 格式，按日期前缀匹配
+    conn = _connect()
+    try:
+        return conn.execute("SELECT COUNT(*) FROM alert_emails WHERE sent_at LIKE ?",
+                            (date_str + "%",)).fetchone()[0]
     finally:
         conn.close()
 

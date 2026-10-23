@@ -74,6 +74,32 @@ model-monitor/
 
 修改旧版 `.env` 配置后执行 `docker restart model-monitor` 生效。启用数据库配置管理后，管理页保存的厂商、模型和监控参数会在当前服务内动态生效，无需重启。
 
+### 邮件告警
+
+模型由正常变为异常（页面红色）、或由异常恢复时发送邮件；“慢”（黄色）不算告警。`ALERT_EMAIL_TO` 为空则关闭。配置完成后可执行 `python alerts.py --test` 发送测试邮件（失败时退出码非 0）。
+
+| 变量 | 说明 | 默认值 |
+| --- | --- | --- |
+| `ALERT_EMAIL_TO` | 收件人，逗号分隔；空=关闭告警 | 空 |
+| `SMTP_HOST` | SMTP 服务器 | 空 |
+| `SMTP_PORT` | SMTP 端口 | `465` |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP 登录账号与密码（授权码） | 空 |
+| `SMTP_FROM` | 发件地址 | 等于 `SMTP_USERNAME` |
+| `SMTP_FROM_NAME` | 发件人显示名 | `模型监控` |
+| `SMTP_USE_SSL` | `true` 用 SMTP_SSL，`false` 用 SMTP + STARTTLS | `true` |
+| `SMTP_TIMEOUT` | SMTP 超时（秒） | `15` |
+| `ALERT_DAILY_LIMIT` | 每日邮件上限（成功加失败的发送次数） | `30` |
+| `ALERT_PAGE_URL` | 监控页链接，非空时附在邮件末尾 | 空 |
+
+告警规则：
+
+- 只在状态变化时发送：正常→异常发故障，异常→正常发恢复；状态不变不重复发。首次出现且异常视为故障，首次出现且正常只记录状态。
+- 同一轮探测中的所有变化合并为一封邮件。
+- 发送失败时不更新状态，下一轮仍会判定为变化并自动重试；失败也计入当日次数。
+- 每日上限：当天发送次数达到 `ALERT_DAILY_LIMIT` 后不再发信，并记录警告日志；这期间的状态变化照常记录，不会次日补发。
+- 告警关闭期间状态也会更新，之后开启不会把旧故障当作新故障。
+- 状态保存在数据库表 `alert_state`，发送记录在 `alert_emails`，重启不会重复告警。
+
 ### 配置管理页
 
 访问 `/model-monitor-admin` 进入“模型监控管理”。管理员账号、密码和 API Key 加密主密钥只从 `.env` 或进程环境读取：

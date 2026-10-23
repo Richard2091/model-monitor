@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 
 import config
 import database
+import alerts
 import config_manager
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,8 @@ def run_checks():
                 results.append({"model": target.model_key, **result})
         order = {target.model_key: index for index, target in enumerate(probe_targets)}
         results.sort(key=lambda item: order.get(item["model"], 0))
+        # 所有结果落库后、释放探测锁前处理状态变化告警（内部已兜底，不影响探测）
+        alerts.process_round(results, probe_targets)
         return results
 
 def _next_probe_time(now: datetime, snapshot=None) -> float:

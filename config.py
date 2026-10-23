@@ -90,6 +90,24 @@ ADMIN_COOKIE_SECURE = _get("ADMIN_COOKIE_SECURE", "false").lower() == "true"
 MODEL_MONITOR_MASTER_KEY = _get("MODEL_MONITOR_MASTER_KEY", "")
 MODEL_CONFIG_SOURCE = _get("MODEL_CONFIG_SOURCE", "database")
 
+# ===== 邮件告警配置 =====
+# 收件人，逗号分隔；为空表示关闭告警
+ALERT_EMAIL_TO = _get("ALERT_EMAIL_TO", "")
+SMTP_HOST = _get("SMTP_HOST", "")
+SMTP_PORT = _get_int("SMTP_PORT", "465")
+SMTP_USERNAME = _get("SMTP_USERNAME", "")
+SMTP_PASSWORD = _get("SMTP_PASSWORD", "")
+# 发件地址，默认等于 SMTP 用户名
+SMTP_FROM = _get("SMTP_FROM", SMTP_USERNAME)
+SMTP_FROM_NAME = _get("SMTP_FROM_NAME", "模型监控")
+# true 使用 SMTP_SSL，false 使用 SMTP + STARTTLS
+SMTP_USE_SSL = _get("SMTP_USE_SSL", "true").lower() == "true"
+SMTP_TIMEOUT = _get_int("SMTP_TIMEOUT", "15")
+# 每日告警邮件上限（成功加失败的发送次数）
+ALERT_DAILY_LIMIT = _get_int("ALERT_DAILY_LIMIT", "30")
+# 监控页链接，非空时附在邮件末尾
+ALERT_PAGE_URL = _get("ALERT_PAGE_URL", "")
+
 # ===== 探测配置 =====
 # 探测间隔，单位分钟，默认 5
 PROBE_INTERVAL_MIN = _get_int("PROBE_INTERVAL_MINUTES", "5")
