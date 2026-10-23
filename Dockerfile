@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends tzdata && rm -r
 WORKDIR /app
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py config.py database.py config_manager.py monitor.py http_server.py security.py ./
+COPY app.py config.py database.py config_manager.py monitor.py http_server.py security.py alerts.py ./
 COPY templates ./templates
 USER appuser
 EXPOSE 8090
