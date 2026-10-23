@@ -130,6 +130,19 @@ def get_alert_states():
         conn.close()
 
 
+def get_alert_changed_at():
+    """读取全部模型上次状态变化的时间（用于计算故障持续时长）。
+
+    @return 字典：模型ID -> 变化时间 ISO 字符串
+    """
+    # 读取 alert_state 全表的变化时间
+    conn = _connect()
+    try:
+        return dict(conn.execute("SELECT model, changed_at FROM alert_state").fetchall())
+    finally:
+        conn.close()
+
+
 def save_alert_states(states):
     """批量写入（覆盖）模型告警状态，同一事务内完成。
 

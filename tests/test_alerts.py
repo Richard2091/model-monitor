@@ -6,7 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -92,7 +92,7 @@ class AlertsTest(unittest.TestCase):
             alerts.process_round([_res("m1", False, 500, "boom" * 100)], self.targets)
         self.assertEqual(self._sent(), 1)
         msg = self.server.send_message.call_args[0][0]
-        self.assertEqual(str(msg["Subject"]), "【模型监控】1 个模型异常")
+        self.assertEqual(str(msg["Subject"]), "【模型监控】模型一（m1） 异常：HTTP 500")
         body = msg.get_content()
         self.assertIn("模型一（m1）", body)
         self.assertIn("500", body)
@@ -106,19 +106,52 @@ class AlertsTest(unittest.TestCase):
         self.assertEqual(self._sent(), 1)
 
     def test_red_to_normal_sends_recovery(self):
-        """红→正常发恢复邮件，且一轮变化合并为一封。"""
+        """红→正常发恢复邮件，标题含模型名，且无显示名时只写模型ID。"""
+        alerts.process_round([_res("m2", False, 502)], self.targets)
+        self.assertEqual(self._sent(), 1)
+        alerts.process_round([_res("m2", True)], self.targets)
+        self.assertEqual(self._sent(), 2)
+        msg = self.server.send_message.call_args[0][0]
+        self.assertEqual(str(msg["Subject"]), "【模型监控】m2 已恢复")
+        self.assertIn("恢复", msg.get_content())
+
+    def test_per_model_emails(self):
+        """同一轮两个模型变化发两封，各自标题含各自模型名。"""
+        alerts.process_round([_res("m1", False, 500), _res("m2", False, 503)], self.targets)
+        self.assertEqual(self._sent(), 2)
+        subjects = [str(c[0][0]["Subject"]) for c in self.server.send_message.call_args_list]
+        self.assertEqual(subjects, ["【模型监控】模型一（m1） 异常：HTTP 500", "【模型监控】m2 异常：HTTP 503"])
+
+    def test_status_zero_subject(self):
+        """状态码为 0 或空时标题写“请求失败”。"""
+        alerts.process_round([_res("m1", False, 0, "timeout"), _res("m2", False, None)], self.targets)
+        subjects = [str(c[0][0]["Subject"]) for c in self.server.send_message.call_args_list]
+        self.assertEqual(subjects, ["【模型监控】模型一（m1） 异常：请求失败", "【模型监控】m2 异常：请求失败"])
+
+    def test_recovery_has_duration(self):
+        """恢复邮件含“故障持续”，算不出时间时不写该行。"""
+        past = (config.now_local() - timedelta(minutes=10)).isoformat()
+        database.save_alert_states([("m1", False, past), ("m2", False, "坏时间")])
+        alerts.process_round([_res("m1", True), _res("m2", True)], self.targets)
+        bodies = [c[0][0].get_content() for c in self.server.send_message.call_args_list]
+        self.assertEqual(len(bodies), 2)
+        self.assertIn("故障持续：10 分钟", bodies[0])
+        self.assertNotIn("故障持续", bodies[1])
+
+    def test_partial_failure_retries_only_failed(self):
+        """同一轮一封成功一封失败，只有失败的模型下一轮重发。"""
+        def fake_send(msg, **kwargs):
+            if "m2" in str(msg["Subject"]):
+                raise OSError("拒收")
+        self.server.send_message.side_effect = fake_send
+        alerts.process_round([_res("m1", False), _res("m2", False)], self.targets)
+        self.assertEqual(database.get_alert_states(), {"m1": False})
+        self.server.send_message.side_effect = None
+        self.server.send_message.reset_mock()
         alerts.process_round([_res("m1", False), _res("m2", False)], self.targets)
         self.assertEqual(self._sent(), 1)
-        alerts.process_round([_res("m1", True), _res("m2", True)], self.targets)
-        self.assertEqual(self._sent(), 2)
-        body = self.server.send_message.call_args[0][0].get_content()
-        self.assertIn("恢复", body)
-        self.assertIn("m1", body)
-        self.assertIn("m2", body)
-        subject = alerts.build_message(
-            [{**_res("m1", False), "recovered": False}, {**_res("m2", False), "recovered": False},
-             {**_res("m3", True), "recovered": True}], {}, datetime(2026, 1, 1))[0]
-        self.assertEqual(subject, "【模型监控】2 个模型异常，1 个恢复")
+        self.assertIn("m2", str(self.server.send_message.call_args[0][0]["Subject"]))
+        self.assertEqual(database.get_alert_states(), {"m1": False, "m2": False})
 
     def test_first_seen(self):
         """首次红发信，首次正常只记录状态不发信。"""
